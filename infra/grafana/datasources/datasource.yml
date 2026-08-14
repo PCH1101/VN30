@@ -1,0 +1,21 @@
+apiVersion: 1
+
+datasources:
+  - name: ClickHouse-VN30
+    type: grafana-clickhouse-datasource
+    uid: clickhouse-vn30
+    access: proxy
+    isDefault: true
+    jsonData:
+      host: clickhouse          # Docker service name (internal DNS)
+      port: 9000
+      username: vn30_user
+      defaultDatabase: vn30
+      protocol: native          # Native TCP (port 9000) — faster than HTTP
+      dialTimeout: 10
+      queryTimeout: 60
+      validateSql: false
+    secureJsonData:
+      password: ${CLICKHOUSE_PASSWORD}
+    editable: true
+    version: 1

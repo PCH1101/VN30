@@ -1,0 +1,227 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_CLICKHOUSE_VN30",
+      "label": "ClickHouse-VN30",
+      "description": "ClickHouse data warehouse cho VN30 ETL",
+      "type": "datasource",
+      "pluginId": "grafana-clickhouse-datasource",
+      "pluginName": "ClickHouse"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "grafana-clickhouse-datasource",
+      "name": "ClickHouse",
+      "version": "3.0.0"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "VN30 Market Analysis Dashboard — Bao Cao & Analytics Toan Ro VN30 Thang 7/2026",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "1. PHAN TICH HIEU SUAT & THANH KHOAN THANG 7/2026",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0 },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "orientation": "vertical",
+        "showValue": "always",
+        "barWidth": 0.8
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT ticker, round((argMax(close_price, trade_date) - argMin(open_price, trade_date)) / argMin(open_price, trade_date) * 100, 2) AS return_pct FROM vn30.silver_daily_ohlcv FINAL WHERE trade_date >= '2026-07-01' AND trade_date <= '2026-07-31' GROUP BY ticker ORDER BY return_pct DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Hieu Suat Tang/Giam Gia Thang 7/2026 (%) — 30 Ma VN30",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          },
+          "unit": "short",
+          "decimals": 2
+        }
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT round(sum(close_price * 1000 * total_volume) / 1000000000, 2) AS value FROM vn30.silver_daily_ohlcv FINAL WHERE trade_date >= '2026-07-01' AND trade_date <= '2026-07-31'",
+          "format": "table",
+          "refId": "B"
+        }
+      ],
+      "title": "Tong Gia Tri Giao Dich Toan Ro VN30 Thang 7 (Ty VND)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 11 },
+      "id": 102,
+      "title": "2. BANG THONG KE CHI TIET GIAO DICH THANG 7/2026 TOAN RO VN30",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Tang_Truong_Pct" },
+            "properties": [
+              { "id": "displayName", "value": "Tang Truong (%)" },
+              { "id": "unit", "value": "percent" },
+              {
+                "id": "color",
+                "value": { "mode": "thresholds" }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "yellow", "value": 0 },
+                    { "color": "green", "value": 1 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Gia_Tri_Ty_VND" },
+            "properties": [
+              { "id": "displayName", "value": "Tong Gia Tri (Ty VND)" },
+              { "id": "unit", "value": "short" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Ma" },
+            "properties": [{ "id": "displayName", "value": "Ma Co Phieu" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Gia_Mo_Dau" },
+            "properties": [{ "id": "displayName", "value": "Gia Dau Thang (VND)" }, { "id": "unit", "value": "currencyVND" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Gia_Dong_Cuoi" },
+            "properties": [{ "id": "displayName", "value": "Gia Cuoi Thang (VND)" }, { "id": "unit", "value": "currencyVND" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Cao_Nhat" },
+            "properties": [{ "id": "displayName", "value": "Cao Nhat (VND)" }, { "id": "unit", "value": "currencyVND" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Thap_Nhat" },
+            "properties": [{ "id": "displayName", "value": "Thap Nhat (VND)" }, { "id": "unit", "value": "currencyVND" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Tong_Vol" },
+            "properties": [{ "id": "displayName", "value": "Tong Khoi Luong" }, { "id": "unit", "value": "short" }]
+          }
+        ]
+      },
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 12 },
+      "id": 3,
+      "options": {
+        "sortBy": [{ "displayName": "Tang Truong (%)", "desc": true }],
+        "footer": { "show": true, "reducer": ["sum"] }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT ticker AS Ma, round(argMin(open_price, trade_date) * 1000, 0) AS Gia_Mo_Dau, round(argMax(close_price, trade_date) * 1000, 0) AS Gia_Dong_Cuoi, round(max(high_price * 1000), 0) AS Cao_Nhat, round(min(low_price * 1000), 0) AS Thap_Nhat, round((argMax(close_price, trade_date) - argMin(open_price, trade_date)) / argMin(open_price, trade_date) * 100, 2) AS Tang_Truong_Pct, sum(total_volume) AS Tong_Vol, round(sum(close_price * 1000 * total_volume) / 1000000000, 2) AS Gia_Tri_Ty_VND FROM vn30.silver_daily_ohlcv FINAL WHERE trade_date >= '2026-07-01' AND trade_date <= '2026-07-31' GROUP BY ticker ORDER BY Tang_Truong_Pct DESC",
+          "format": "table",
+          "refId": "C"
+        }
+      ],
+      "title": "Bang Thong Ke Chi Tiet Gia & Thanh Khoan Thang 7/2026 — 30 Ma VN30",
+      "type": "table"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 38,
+  "tags": ["vn30", "july-2026", "market-analysis"],
+  "templating": {
+    "list": []
+  },
+  "time": { "from": "2026-07-01T00:00:00.000Z", "to": "2026-07-31T23:59:59.000Z" },
+  "timepicker": {},
+  "timezone": "Asia/Ho_Chi_Minh",
+  "title": "VN30 July 2026 Market Analysis Dashboard",
+  "uid": "vn30-july-2026",
+  "version": 5,
+  "weekStart": "monday"
+}
