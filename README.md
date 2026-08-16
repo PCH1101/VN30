@@ -1,21 +1,21 @@
 # VN30 Stock ETL Pipeline
 
-> 📄 **Tài liệu mô tả & thiết kế chi tiết dự án:** [VN30_Project — Google Docs](https://docs.google.com/document/d/1km6v6u2EEHaTb5752AL_8OuRZesgcm5rtLw5DXheoNo/edit?tab=t.0)
+> 📄 **Project documentation & detailed design:** [VN30_Project — Google Docs](https://docs.google.com/document/d/1km6v6u2EEHaTb5752AL_8OuRZesgcm5rtLw5DXheoNo/edit?tab=t.0)
 
-Hệ thống thu thập (ETL) dữ liệu giao dịch của **30 mã cổ phiếu rổ VN30** (HOSE) từ API **vnstock**, xử lý theo kiến trúc Medallion (Bronze → Silver → Gold) và trực quan hóa trên **Grafana**.
+A data collection (ETL) system for trading data of the **30 VN30 index stocks** (HOSE) from the **vnstock** API, processed using a Medallion architecture (Bronze → Silver → Gold) and visualized in **Grafana**.
 
 ---
 
-## Tổng quan
+## Overview
 
-| Mục | Chi tiết |
-|-----|----------|
-| Nguồn dữ liệu | vnstock (TCBS/SSI) |
-| Phạm vi | 30 mã VN30: ACB, BCM, BID, BVH, CTG, FPT, GAS, GVR, HDB, HPG, MBB, MSN, MWG, NLB, PDR, PLX, POW, SAB, SSI, STB, TCB, TPB, VCB, VHM, VIB, VIC, VNM, VPB, VRE, VJC |
-| Dữ liệu thu thập | OHLCV ngày, khớp lệnh intraday (ticks), nến 1 phút |
-| Kiến trúc | Medallion (Bronze → Silver → Gold), Galaxy Schema |
+| Item | Detail |
+|------|--------|
+| Data source | vnstock (TCBS/SSI) |
+| Scope | 30 VN30 stocks: ACB, BCM, BID, BVH, CTG, FPT, GAS, GVR, HDB, HPG, MBB, MSN, MWG, NLB, PDR, PLX, POW, SAB, SSI, STB, TCB, TPB, VCB, VHM, VIB, VIC, VNM, VPB, VRE, VJC |
+| Data collected | Daily OHLCV, intraday order matches (ticks), 1-minute candles |
+| Architecture | Medallion (Bronze → Silver → Gold), Galaxy Schema |
 
-## Kiến trúc hệ thống
+## System Architecture
 
 ```
 [vnstock API] → [Airflow Worker] → [MinIO Bronze]
@@ -24,7 +24,7 @@ Hệ thống thu thập (ETL) dữ liệu giao dịch của **30 mã cổ phiế
                                           ↓
                         [ClickHouse Silver: ticks + OHLCV]
                                           ↓ (Materialized View)
-                        [ClickHouse Gold: nến 1 phút + money flow]
+                        [ClickHouse Gold: 1-min candles + money flow]
                                 ↙               ↘
                     [Grafana Dashboard]   [Telegram Bot Alert]
 ```
@@ -45,29 +45,29 @@ Hệ thống thu thập (ETL) dữ liệu giao dịch của **30 mã cổ phiế
 
 ## Use Cases
 
-- **Shark Alert (Real-time)** — Cảnh báo lực mua/bán chủ động đột biến khi khối lượng 1 phút gấp 3 lần trung bình 20 phút.
-- **VN30 Dashboard** — Bản đồ nhiệt 30 mã, dòng tiền ròng (Net Money Flow), nến 1 phút realtime trên Grafana.
-- **VWAP Signal** — Tín hiệu mua/bán khi giá cắt đường VWAP lũy kế trong ngày.
+- **Shark Alert (Real-time)** — Alerts on abnormal active buy/sell pressure when 1-minute volume is 3x the 20-minute average.
+- **VN30 Dashboard** — Heatmap of the 30 stocks, Net Money Flow, and real-time 1-minute candles on Grafana.
+- **VWAP Signal** — Buy/sell signal when price crosses the cumulative intraday VWAP line.
 
-## Lịch chạy
+## Schedule
 
-| DAG | Cron | Mô tả |
-|-----|------|-------|
-| `vn30_intraday_dag` | `*/2 9-11,13-15 * * 1-5` | Fetch tick data mỗi 2 phút (T2-T6) |
-| `vn30_eod_dag` | `30 15 * * 1-5` | Chốt OHLCV cuối ngày lúc 15:30 |
+| DAG | Cron | Description |
+|-----|------|-------------|
+| `vn30_intraday_dag` | `*/2 9-11,13-15 * * 1-5` | Fetch tick data every 2 minutes (Mon-Fri) |
+| `vn30_eod_dag` | `30 15 * * 1-5` | Finalize end-of-day OHLCV at 15:30 |
 
-## Cấu trúc thư mục
+## Directory Structure
 
 ```
 VN30/
 ├── dags/                    # Airflow DAGs (intraday + EOD)
-├── docs/                    # Tài liệu thiết kế & ETL flow
+├── docs/                    # Design docs & ETL flow
 ├── infra/
 │   ├── clickhouse/          # Schema & seed data
 │   └── grafana/             # Datasource & dashboards
 ├── scripts/                 # Backfill & one-off utilities
 ├── src/
-│   ├── extractors/          # Fetch dữ liệu (intraday, OHLCV)
+│   ├── extractors/          # Data fetching (intraday, OHLCV)
 │   ├── transformers/        # Polars transforms
 │   ├── loaders/             # Bronze/Silver loader
 │   ├── analytics/           # VWAP calculator
@@ -78,17 +78,17 @@ VN30/
 └── .env.example
 ```
 
-## Bắt đầu nhanh
+## Quick Start
 
-Xem hướng dẫn cài đặt chi tiết tại **[SETUP.md](SETUP.md)**.
+See the detailed installation guide in **[docs/SETUP.md](docs/SETUP.md)**.
 
-## Chạy Tests
+## Running Tests
 
 ```bash
 pytest tests/ -v
 ```
 
-## Dừng services
+## Stopping Services
 
 ```bash
 docker compose down
@@ -96,4 +96,4 @@ docker compose down
 
 ---
 
-*Thiết kế chi tiết về database, bài toán nghiệp vụ và kiến trúc ELT vui lòng xem tài liệu: [VN30_Project](https://docs.google.com/document/d/1km6v6u2EEHaTb5752AL_8OuRZesgcm5rtLw5DXheoNo/edit?tab=t.0)*
+*For the detailed design of the database, business problem, and ELT architecture, see the documentation: [VN30_Project](https://docs.google.com/document/d/1km6v6u2EEHaTb5752AL_8OuRZesgcm5rtLw5DXheoNo/edit?tab=t.0)*
