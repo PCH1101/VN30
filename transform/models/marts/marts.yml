@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: mart_vn30_price_board
+    description: "VN30 Realtime Price Board mart for Grafana dashboard"
+    columns:
+      - name: ticker
+        tests:
+          - unique
+          - not_null
+      - name: last_price
+        tests:
+          - not_null
+

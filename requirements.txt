@@ -1,23 +1,19 @@
-# =============================================================================
-# VN30 Stock ETL Pipeline — Dependencies
-# =============================================================================
-
 # Data source
 vnstock3>=0.3.0
 
 # Async HTTP & Utilities
 aiohttp>=3.9.0
 
-# Data Transformation & Serialization
-polars>=0.20.0
-pyarrow>=14.0.0
+# Kafka Producer
+confluent-kafka>=2.4.0
+
+# Database & Transformation
+clickhouse-driver>=0.2.7
+dbt-core>=1.8.0
+dbt-clickhouse>=1.8.0
 
 # Orchestration
 apache-airflow>=2.8.0
-
-# Database & Object Storage
-clickhouse-driver>=0.2.7
-minio>=7.2.0
 
 # Configuration Management
 pydantic>=2.0.0

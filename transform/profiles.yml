@@ -1,0 +1,14 @@
+vn30_clickhouse:
+  target: dev
+  outputs:
+    dev:
+      type: clickhouse
+      host: "{{ env_var('CLICKHOUSE_HOST', 'clickhouse') }}"
+      port: 9000
+      driver: native
+      user: "{{ env_var('CLICKHOUSE_USER', 'admin') }}"
+      password: "{{ env_var('CLICKHOUSE_PASSWORD', '123456') }}"
+      schema: "{{ env_var('CLICKHOUSE_DATABASE', 'vn30') }}"
+      secure: False
+
+

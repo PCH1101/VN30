@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: vn30_raw
+    database: "{{ env_var('CLICKHOUSE_DATABASE', 'vn30') }}"
+    schema: "{{ env_var('CLICKHOUSE_DATABASE', 'vn30') }}"
+    tables:
+      - name: raw_intraday_ticks
+        description: "Raw ticks stream ingested by ClickHouse Kafka Table Engine from topic vn30.intraday.ticks"
+      - name: raw_daily_ohlcv
+        description: "Daily aggregated OHLCV bars per VN30 ticker"
+      - name: dim_stocks
+        description: "Dimension table containing VN30 stock metadata"
+      - name: dim_date
+        description: "Dimension table containing trading calendar and dates"

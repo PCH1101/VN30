@@ -1,6 +1,6 @@
 """
 ClickHouse client wrapper — connection pool, typed helpers, retry logic.
-Sử dụng clickhouse-driver (native protocol port 9000) để đạt throughput cao nhất.
+Uses clickhouse-driver (native protocol port 9000).
 """
 
 from __future__ import annotations
@@ -9,7 +9,6 @@ import logging
 from contextlib import contextmanager
 from typing import Any, Generator
 
-import polars as pl
 from clickhouse_driver import Client
 from clickhouse_driver.errors import NetworkError, SocketTimeoutError
 
@@ -86,47 +85,29 @@ def execute(
     raise RuntimeError(f"ClickHouse query failed after {retries} retries") from last_exc
 
 
-def insert_df(
+def insert_rows(
     table: str,
-    df: pl.DataFrame,
+    rows: list[dict[str, Any]],
     *,
-    column_names: list[str] | None = None,
+    columns: list[str] | None = None,
     retries: int = 3,
 ) -> int:
     """
-    Batch insert a Polars DataFrame into a ClickHouse table.
-
-    Uses INSERT ... FORMAT VALUES for compatibility; columns must match
-    the DataFrame schema or the explicit column_names list.
+    Batch insert a list of dicts into a ClickHouse table.
 
     Args:
-        table:        Fully-qualified table name, e.g. 'vn30.silver_intraday_ticks'.
-        df:           Polars DataFrame to insert.
-        column_names: Override column order (defaults to df.columns).
-        retries:      Auto-retry on transient errors.
+        table:   Target table name, e.g. 'vn30.raw_intraday_ticks'.
+        rows:    List of row dicts.
+        columns: Optional column names.
+        retries: Auto-retry count.
 
     Returns:
         Number of rows inserted.
     """
-    if df.is_empty():
-        logger.debug("insert_df: empty DataFrame for table '%s', skipping.", table)
+    if not rows:
         return 0
 
-    from datetime import date as dt_date
-
-    cols = column_names or df.columns
-    # Convert Polars → list of dicts for clickhouse-driver
-    rows: list[dict] = df.select(cols).to_dicts()
-
-    # Normalize ISO string dates -> datetime.date for ClickHouse Date columns
-    for row in rows:
-        for k, v in row.items():
-            if isinstance(v, str) and len(v) == 10 and v[4] == "-" and v[7] == "-":
-                try:
-                    row[k] = dt_date.fromisoformat(v)
-                except ValueError:
-                    pass
-
+    cols = columns or list(rows[0].keys())
     attempt = 0
     last_exc: Exception | None = None
 
@@ -137,18 +118,14 @@ def insert_df(
                     f"INSERT INTO {table} ({', '.join(cols)}) VALUES",
                     rows,
                 )
-            logger.info("insert_df: inserted %d rows into '%s'.", len(rows), table)
+            logger.info("insert_rows: inserted %d rows into '%s'.", len(rows), table)
             return len(rows)
         except (NetworkError, SocketTimeoutError) as exc:
             attempt += 1
             last_exc = exc
-            logger.warning(
-                "insert_df network error (attempt %d/%d): %s", attempt, retries, exc
-            )
+            logger.warning("insert_rows network error (attempt %d/%d): %s", attempt, retries, exc)
 
-    raise RuntimeError(
-        f"insert_df into '{table}' failed after {retries} retries"
-    ) from last_exc
+    raise RuntimeError(f"insert_rows into '{table}' failed after {retries} retries") from last_exc
 
 
 def ping() -> bool:

@@ -7,15 +7,16 @@ datasources:
     access: proxy
     isDefault: true
     jsonData:
-      host: clickhouse          # Docker service name (internal DNS)
-      port: 9000
-      username: vn30_user
+      host: clickhouse
+      port: 8123
+      username: admin
       defaultDatabase: vn30
-      protocol: native          # Native TCP (port 9000) — faster than HTTP
+      protocol: http
       dialTimeout: 10
       queryTimeout: 60
       validateSql: false
     secureJsonData:
-      password: ${CLICKHOUSE_PASSWORD}
+      password: "123456"
     editable: true
     version: 1
+

@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class ClickHouseSettings(BaseSettings):
     host: str = "localhost"
     port: int = 9000
+    http_port: int = 8123
     database: str = "vn30"
     user: str = "vn30_user"
     password: str = "123456"
@@ -17,21 +18,13 @@ class ClickHouseSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="CLICKHOUSE_")
 
 
-class MinIOSettings(BaseSettings):
-    endpoint: str = "localhost:9001"
-    access_key: str = "minioadmin"
-    secret_key: str = "minioadmin123"
-    secure: bool = False
-    bucket_bronze: str = "vn30-bronze"
+class KafkaSettings(BaseSettings):
+    bootstrap_servers: str = "localhost:9092"
+    topic_intraday: str = "vn30.intraday.ticks"
+    producer_acks: str = "1"
+    producer_retries: int = 3
 
-    model_config = SettingsConfigDict(env_prefix="MINIO_")
-
-
-class TelegramSettings(BaseSettings):
-    token: str = ""
-    chat_id: str = ""
-
-    model_config = SettingsConfigDict(env_prefix="TELEGRAM_")
+    model_config = SettingsConfigDict(env_prefix="KAFKA_")
 
 
 class AirflowSettings(BaseSettings):
@@ -41,7 +34,7 @@ class AirflowSettings(BaseSettings):
 
 
 class VnstockSettings(BaseSettings):
-    source: str = "TCBS"
+    source: str = "VCI"
     api_key: str = ""
     timeout: int = 30
     show_log: bool = False
@@ -52,8 +45,7 @@ class VnstockSettings(BaseSettings):
 class Settings(BaseSettings):
     # Sub-settings (nested via env prefix)
     clickhouse: ClickHouseSettings = ClickHouseSettings()
-    minio: MinIOSettings = MinIOSettings()
-    telegram: TelegramSettings = TelegramSettings()
+    kafka: KafkaSettings = KafkaSettings()
     airflow: AirflowSettings = AirflowSettings()
     vnstock: VnstockSettings = VnstockSettings()
 
@@ -72,12 +64,6 @@ class Settings(BaseSettings):
         ("09:15", "11:30"),
         ("13:00", "15:00"),
     ]
-
-    # Alert thresholds
-    volume_spike_multiplier: float = 3.0      # Vol > N * MA20(Vol)
-    buy_ratio_buy_threshold: float = 0.70     # >= 70% buy = bullish alert
-    buy_ratio_sell_threshold: float = 0.30    # <= 30% buy = bearish alert
-    ma_volume_window: int = 20                # MA period for volume baseline
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: stg_intraday_ticks
+    description: "Cleaned and deduplicated tick-by-tick trading data"
+    columns:
+      - name: ticker
+        description: "Stock ticker symbol"
+        tests:
+          - not_null
+      - name: match_time
+        description: "Exact timestamp of matched trade"
+        tests:
+          - not_null
+      - name: price
+        description: "Matched execution price in VND"
+        tests:
+          - not_null
+      - name: volume
+        description: "Matched trade volume"
+        tests:
+          - not_null
+

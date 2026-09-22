@@ -1,99 +1,101 @@
-# VN30 Stock ETL Pipeline
+# 📈 VN30 Real-Time Stock Data Pipeline
 
-> 📄 **Project documentation & detailed design:** [VN30_Project — Google Docs](https://docs.google.com/document/d/1km6v6u2EEHaTb5752AL_8OuRZesgcm5rtLw5DXheoNo/edit?tab=t.0)
-
-A data collection (ETL) system for trading data of the **30 VN30 index stocks** (HOSE) from the **vnstock** API, processed using a Medallion architecture (Bronze → Silver → Gold) and visualized in **Grafana**.
+> Pipeline thu thập, streaming, xử lý ELT và trực quan hóa dữ liệu thời gian thực cho 30 cổ phiếu rổ **VN30 (HOSE)** sử dụng **Kafka, ClickHouse, dbt, Airflow** và **Grafana**.
 
 ---
 
-## Overview
-
-| Item | Detail |
-|------|--------|
-| Data source | vnstock (TCBS/SSI) |
-| Scope | 30 VN30 stocks: ACB, BCM, BID, BVH, CTG, FPT, GAS, GVR, HDB, HPG, MBB, MSN, MWG, NLB, PDR, PLX, POW, SAB, SSI, STB, TCB, TPB, VCB, VHM, VIB, VIC, VNM, VPB, VRE, VJC |
-| Data collected | Daily OHLCV, intraday order matches (ticks), 1-minute candles |
-| Architecture | Medallion (Bronze → Silver → Gold), Galaxy Schema |
-
-## System Architecture
+## 🏛️ Kiến Trúc (Architecture)
 
 ```
-[vnstock API] → [Airflow Worker] → [MinIO Bronze]
-                                          ↓
-                              [Polars Transform]
-                                          ↓
-                        [ClickHouse Silver: ticks + OHLCV]
-                                          ↓ (Materialized View)
-                        [ClickHouse Gold: 1-min candles + money flow]
-                                ↙               ↘
-                    [Grafana Dashboard]   [Telegram Bot Alert]
+[vnstock API] ──(15s)──► [Apache Kafka] ──(Kafka Engine + MV)──► [ClickHouse OLAP]
+                                                                        │
+[Apache Airflow] ──(Daily/Micro-batch)──► [dbt Models] ───────────────┤
+                                                                        ▼
+                                                               [Grafana Dashboard]
 ```
 
-## Tech Stack
+---
 
-| Layer | Technology |
-|-------|-----------|
-| Data Source | vnstock (TCBS/SSI) |
-| Language | Python 3.11+ (asyncio) |
-| Transform | Polars |
-| Orchestration | Apache Airflow 2.x |
-| Bronze Storage | MinIO (S3-compatible) |
-| Data Warehouse | ClickHouse |
-| BI Dashboard | Grafana |
-| Alert | Telegram Bot |
-| Infrastructure | Docker Compose |
+## 🛠️ Tech Stack
 
-## Use Cases
+| Thành phần | Công nghệ | Mục đích |
+|---|---|---|
+| **Ingestion** | Python 3.11 (`vnstock`, `aiohttp`) | Thu thập dữ liệu giao dịch khớp lệnh intraday ticks |
+| **Streaming** | Apache Kafka 7.6 (KRaft) | Message buffer phân vùng theo mã cổ phiếu |
+| **Data Warehouse** | ClickHouse 24.3 | Lưu trữ Time-Series OLAP & ingest trực tiếp qua Kafka Engine |
+| **Transformation**| dbt-clickhouse 1.8 | Xử lý dữ liệu (Staging → Intermediate → Marts) |
+| **Orchestration** | Apache Airflow 2.8 | Điều phối pipeline, trigger dbt & cảnh báo |
+| **Visualization** | Grafana 10.3 | Dashboard theo dõi bảng giá & biểu đồ nến OHLCV 1 phút |
 
-- **Shark Alert (Real-time)** — Alerts on abnormal active buy/sell pressure when 1-minute volume is 3x the 20-minute average.
-- **VN30 Dashboard** — Heatmap of the 30 stocks, Net Money Flow, and real-time 1-minute candles on Grafana.
-- **VWAP Signal** — Buy/sell signal when price crosses the cumulative intraday VWAP line.
+---
 
-## Schedule
+## 🚀 Khởi Động Nhanh (Quick Start)
 
-| DAG | Cron | Description |
-|-----|------|-------------|
-| `vn30_intraday_dag` | `*/2 9-11,13-15 * * 1-5` | Fetch tick data every 2 minutes (Mon-Fri) |
-| `vn30_eod_dag` | `30 15 * * 1-5` | Finalize end-of-day OHLCV at 15:30 |
+### 1. Cấu hình môi trường
+```bash
+cp .env.example .env
+```
 
-## Directory Structure
+### 2. Khởi chạy toàn bộ hệ thống
+```bash
+docker compose up -d
+```
+
+### 3. Kiểm tra trạng thái containers
+```bash
+docker compose ps
+```
+
+---
+
+## 🌐 Danh Sách Dịch Vụ & Truy Cập
+
+| Dịch Vụ | Địa chỉ Web / Port | Tài khoản mặc định | Mô tả |
+|---|---|---|---|
+| **Grafana** | [http://localhost:3000](http://localhost:3000) | `admin` / `admin123` | Dashboard trực quan hóa bảng giá & nến |
+| **Airflow** | [http://localhost:8088](http://localhost:8088) | `admin` / `admin` | Quản lý & giám sát workflow |
+| **Kafka UI** | [http://localhost:8090](http://localhost:8090) | *(Không cần đăng nhập)* | Quản trị Kafka topics & message stream |
+| **ClickHouse HTTP** | [http://localhost:8123](http://localhost:8123) | `vn30_user` / `changeme` | REST API & Web query |
+| **ClickHouse Native** | `localhost:9000` | `vn30_user` / `changeme` | TCP client & dbt connection |
+
+---
+
+## 📂 Cấu Trúc Dự Án
 
 ```
 VN30/
-├── dags/                    # Airflow DAGs (intraday + EOD)
-├── docs/                    # Design docs & ETL flow
-├── infra/
-│   ├── clickhouse/          # Schema & seed data
-│   └── grafana/             # Datasource & dashboards
-├── scripts/                 # Backfill & one-off utilities
-├── src/
-│   ├── extractors/          # Data fetching (intraday, OHLCV)
-│   ├── transformers/        # Polars transforms
-│   ├── loaders/             # Bronze/Silver loader
-│   ├── analytics/           # VWAP calculator
-│   └── alerts/              # Telegram alert
-├── tests/
-├── docker-compose.yml
-├── requirements.txt
-└── .env.example
-```
-
-## Quick Start
-
-See the detailed installation guide in **[docs/SETUP.md](docs/SETUP.md)**.
-
-## Running Tests
-
-```bash
-pytest tests/ -v
-```
-
-## Stopping Services
-
-```bash
-docker compose down
+├── dags/                  # Airflow DAGs
+├── infra/                 # Cấu hình ClickHouse DDL & Grafana Provisioning
+├── src/                   # Source code Python (Extractors & Kafka Producer)
+├── transform/             # dbt project (Models: Staging, Intermediate, Marts)
+├── docker-compose.yml     # Quản lý Docker services
+└── requirements.txt       # Python dependencies
 ```
 
 ---
 
-*For the detailed design of the database, business problem, and ELT architecture, see the documentation: [VN30_Project](https://docs.google.com/document/d/1km6v6u2EEHaTb5752AL_8OuRZesgcm5rtLw5DXheoNo/edit?tab=t.0)*
+## ⚙️ Lệnh Thao Tác Thường Dùng
+
+- **Chạy producer thủ công (ngoài Docker):**
+  ```bash
+  python3 -m src.producers.kafka_producer
+  ```
+
+- **Chạy dbt transform & test:**
+  ```bash
+  cd transform && dbt run --profiles-dir . && dbt test --profiles-dir .
+  ```
+
+- **Kiểm tra dữ liệu trong ClickHouse:**
+  ```bash
+  docker exec -it vn30_clickhouse clickhouse-client -u vn30_user --password changeme --database vn30 --query "
+  SELECT 'raw_intraday_ticks' AS table, count() AS rows FROM raw_intraday_ticks
+  UNION ALL
+  SELECT 'mart_vn30_price_board' AS table, count() AS rows FROM mart_vn30_price_board;
+  "
+  ```
+
+---
+
+## 📄 License
+MIT License.

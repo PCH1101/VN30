@@ -47,59 +47,72 @@ def is_trading_hour(now: datetime | None = None) -> bool:
             return True
     return False
 
+# Global semaphore to limit concurrent requests to avoid Vietcap WAF rate limiting
+_SEMAPHORE = asyncio.Semaphore(6)
+_API_KEY_INITIALIZED = False
+
+
+def _init_api_key_once():
+    global _API_KEY_INITIALIZED
+    if not _API_KEY_INITIALIZED:
+        if settings.vnstock.api_key:
+            try:
+                import vnstock
+                if hasattr(vnstock, "change_api_key"):
+                    vnstock.change_api_key(settings.vnstock.api_key)
+            except Exception as e:
+                logger.debug("Failed to set vnstock api key: %s", e)
+        _API_KEY_INITIALIZED = True
+
 
 # ---------------------------------------------------------------------------
 # Single-ticker fetch
 # ---------------------------------------------------------------------------
 
-async def _fetch_one_ticker(ticker: str, jitter_ms: int = 100) -> list[dict[str, Any]]:
-    """
-    Fetch intraday ticks cho 1 mã cổ phiếu từ vnstock3 API.
-
-    Args:
-        ticker:     Mã cổ phiếu, VD: 'HPG'.
-        jitter_ms:  Max random delay (ms) để tránh burst request.
-
-    Returns:
-        List of raw tick dicts từ API (rỗng nếu lỗi / không có data).
-    """
-    # Jitter ngẫu nhiên tránh thundering herd
-    await asyncio.sleep(random.randint(0, jitter_ms) / 1000)
-
+def _fetch_one_ticker_sync(ticker: str) -> list[dict[str, Any]]:
+    """Synchronous worker that calls modern vnstock API."""
     try:
-        # Lazy import: try vnstock first (v4+), fallback to vnstock3
         try:
-            from vnstock import Vnstock  # type: ignore[import-untyped]
+            from vnstock.api.quote import Quote  # type: ignore[import-untyped]
+            q = Quote(symbol=ticker, source="VCI")
+            df = q.intraday()
         except ImportError:
-            from vnstock3 import Vnstock  # type: ignore[import-untyped]
-
-        source = settings.vnstock.source or "KBS"
-        if source not in ("KBS", "VCI", "MSN", "FMP"):
-            source = "KBS"
-        stock = Vnstock(
-            show_log=settings.vnstock.show_log,
-        ).stock(symbol=ticker, source=source)
-        
-        # Try stock.quote.intraday() first, fallback to price_depth()
-        try:
-            df = stock.quote.intraday()
-        except AttributeError:
-            df = stock.quote.price_depth()
+            try:
+                from vnstock import Vnstock  # type: ignore[import-untyped]
+                df = Vnstock(show_log=False).stock(symbol=ticker, source="VCI").quote.intraday()
+            except ImportError:
+                from vnstock3 import Vnstock  # type: ignore[import-untyped]
+                df = Vnstock(show_log=False).stock(symbol=ticker, source="VCI").quote.intraday()
 
         if df is None or df.empty:
-            logger.debug("No intraday data for %s", ticker)
             return []
 
-        records = df.to_dict(orient="records")
-        logger.debug("Fetched %d ticks for %s", len(records), ticker)
-        return records
+        return df.to_dict(orient="records")
 
-    except ImportError:
-        logger.error("vnstock3 not installed — cannot fetch intraday data.")
-        return []
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to fetch intraday ticks for %s: %s", ticker, exc)
         return []
+
+
+async def _fetch_one_ticker(ticker: str, jitter_ms: int = 150, timeout_sec: float = 10.0) -> list[dict[str, Any]]:
+    """
+    Fetch intraday ticks cho 1 mã cổ phiếu từ vnstock API asynchronously using thread pool.
+    """
+    _init_api_key_once()
+    await asyncio.sleep(random.randint(20, max(20, jitter_ms)) / 1000)
+
+    async with _SEMAPHORE:
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(_fetch_one_ticker_sync, ticker),
+                timeout=timeout_sec,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Timeout (>%.1fs) fetching ticks for %s", timeout_sec, ticker)
+            return []
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Error fetching ticks for %s: %s", ticker, exc)
+            return []
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +123,7 @@ async def fetch_all_vn30_ticks(
     tickers: list[str] | None = None,
     *,
     check_trading_hour: bool = True,
-    jitter_ms: int = 100,
+    jitter_ms: int = 200,
 ) -> dict[str, list[dict[str, Any]]]:
     """
     Fetch intraday ticks cho toàn bộ rổ VN30 song song.
@@ -132,9 +145,16 @@ async def fetch_all_vn30_ticks(
     logger.info("Fetching intraday ticks for %d tickers...", len(tickers))
 
     tasks = [_fetch_one_ticker(ticker, jitter_ms) for ticker in tickers]
-    results: list[list[dict]] = await asyncio.gather(*tasks)
+    results: list[list[dict]] = await asyncio.gather(*tasks, return_exceptions=True)
 
-    data = {ticker: rows for ticker, rows in zip(tickers, results)}
+    cleaned_results = []
+    for res in results:
+        if isinstance(res, list):
+            cleaned_results.append(res)
+        else:
+            cleaned_results.append([])
+
+    data = {ticker: rows for ticker, rows in zip(tickers, cleaned_results)}
     total_ticks = sum(len(rows) for rows in data.values())
     logger.info("Fetched %d total ticks across %d tickers.", total_ticks, len(tickers))
 

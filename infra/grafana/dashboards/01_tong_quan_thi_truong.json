@@ -1,0 +1,401 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Bảng Điện & Tổng Quan Thị Trường VN30 Real-time",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "chart-line",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "👉 Chuyển sang: Phân Tích Cổ Phiếu Chi Tiết",
+      "tooltip": "Xem chi tiết nến 1 phút và dòng tiền của từng mã",
+      "type": "link",
+      "url": "/d/phan-tich-co-phieu-chi-tiet/phan-tich-co-phieu-chi-tiet"
+    }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Chỉ Số Toàn Thị Trường VN30",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "light-blue" },
+          "unit": "suffix: tr",
+          "decimals": 2
+        }
+      },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
+      "id": 10,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT round(sum(volume) / 1000000, 2) AS total_vol FROM vn30.view_realtime_price_board",
+          "format": 0,
+          "refId": "A"
+        }
+      ],
+      "title": "Tổng Khối Lượng VN30",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "unit": "percent",
+          "decimals": 2
+        }
+      },
+      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
+      "id": 11,
+      "options": {
+        "reduceOptions": { "calcs": [], "fields": "", "values": true },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT ticker, change_pct FROM vn30.view_realtime_price_board ORDER BY change_pct DESC LIMIT 1",
+          "format": 0,
+          "refId": "A"
+        }
+      ],
+      "title": "Mã Tăng Mạnh Nhất",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "red" },
+          "unit": "percent",
+          "decimals": 2
+        }
+      },
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
+      "id": 12,
+      "options": {
+        "reduceOptions": { "calcs": [], "fields": "", "values": true },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT ticker, change_pct FROM vn30.view_realtime_price_board ORDER BY change_pct ASC LIMIT 1",
+          "format": 0,
+          "refId": "A"
+        }
+      ],
+      "title": "Mã Giảm Mạnh Nhất",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "yellow" },
+          "unit": "locale",
+          "decimals": 0
+        }
+      },
+      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 1 },
+      "id": 13,
+      "options": {
+        "reduceOptions": { "calcs": [], "fields": "", "values": true },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT ticker, volume FROM vn30.view_realtime_price_board ORDER BY volume DESC LIMIT 1",
+          "format": 0,
+          "refId": "A"
+        }
+      ],
+      "title": "Mã Thanh Khoản Lớn Nhất",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 14,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT countIf(change_pct > 0) AS `Tăng`, countIf(change_pct = 0) AS `Đứng Giá`, countIf(change_pct < 0) AS `Giảm` FROM vn30.view_realtime_price_board",
+          "format": 0,
+          "refId": "A"
+        }
+      ],
+      "title": "Độ Rộng (Tăng / Đứng / Giảm)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Bảng Điện Trực Tuyến VN30 (Live Price Board)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Biến Động %" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "mode": "gradient", "type": "color-background" }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "#d44a3a", "value": null },
+                    { "color": "#e5ac0e", "value": 0 },
+                    { "color": "#299c46", "value": 0.01 }
+                  ]
+                }
+              },
+              { "id": "unit", "value": "percent" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Khối Lượng" },
+            "properties": [
+              { "id": "unit", "value": "locale" },
+              { "id": "decimals", "value": 0 },
+              { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Mua C.Động" },
+            "properties": [
+              { "id": "unit", "value": "locale" },
+              { "id": "decimals", "value": 0 },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Bán C.Động" },
+            "properties": [
+              { "id": "unit", "value": "locale" },
+              { "id": "decimals", "value": 0 },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Giá Khớp" },
+            "properties": [
+              { "id": "unit", "value": "locale" },
+              { "id": "decimals", "value": 0 },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "#e5ac0e", "value": null },
+                    { "color": "#299c46", "value": 0.01 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Tham Chiếu" },
+            "properties": [
+              { "id": "unit", "value": "locale" },
+              { "id": "decimals", "value": 0 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Cao Nhất" },
+            "properties": [
+              { "id": "unit", "value": "locale" },
+              { "id": "decimals", "value": 0 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Thấp Nhất" },
+            "properties": [
+              { "id": "unit", "value": "locale" },
+              { "id": "decimals", "value": 0 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 6 },
+      "id": 20,
+      "options": {
+        "footer": { "countRows": false, "enablePagination": true, "show": true },
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Biến Động %", "desc": true }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT ticker AS `Mã`, company_name AS `Doanh Nghiệp`, sector_name AS `Ngành`, round(last_price * 1000, 0) AS `Giá Khớp`, round(reference_price * 1000, 0) AS `Tham Chiếu`, round(high_price * 1000, 0) AS `Cao Nhất`, round(low_price * 1000, 0) AS `Thấp Nhất`, round(change_pct, 2) AS `Biến Động %`, volume AS `Khối Lượng`, buy_volume AS `Mua C.Động`, sell_volume AS `Bán C.Động`, formatDateTime(updated_at, '%H:%i:%s') AS `Cập Nhật` FROM vn30.view_realtime_price_board WHERE sector_name IN (${sector:singlequote}) ORDER BY change_pct DESC",
+          "format": 0,
+          "refId": "A"
+        }
+      ],
+      "title": "Bảng Giá Trực Tuyến 30 Cổ Phiếu VN30 (Cập Nhật Realtime Tức Thì)",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+      "id": 102,
+      "title": "Phân Bổ Thanh Khoản Theo Ngành",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "links": [
+            {
+              "title": "Khối lượng chính xác: ${__data.fields.formatted_volume} CP",
+              "url": ""
+            }
+          ]
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+      "id": 30,
+      "options": {
+        "orientation": "horizontal",
+        "showValue": "always"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT sector_name AS metric, sum(volume) AS value, trim(BOTH ',' FROM reverse(replaceRegexpAll(reverse(toString(sum(volume))), '(\\\\d{3})', '\\\\1,'))) AS formatted_volume FROM vn30.view_realtime_price_board GROUP BY sector_name ORDER BY value DESC",
+          "format": 0,
+          "refId": "A"
+        }
+      ],
+      "title": "Khối Lượng Giao Dịch Theo Nhóm Ngành",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "links": [
+            {
+              "title": "Khối lượng chính xác: ${__data.fields.formatted_volume} CP",
+              "url": ""
+            }
+          ]
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
+      "id": 31,
+      "options": {
+        "orientation": "horizontal",
+        "showValue": "always"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+          "rawSql": "SELECT ticker AS metric, volume AS value, trim(BOTH ',' FROM reverse(replaceRegexpAll(reverse(toString(volume)), '(\\\\d{3})', '\\\\1,'))) AS formatted_volume FROM vn30.view_realtime_price_board ORDER BY value DESC LIMIT 10",
+          "format": 0,
+          "refId": "A"
+        }
+      ],
+      "title": "Top 10 Cổ Phiếu Thanh Khoản Lớn Nhất",
+      "type": "barchart"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "tags": ["vn30", "market-overview", "price-board"],
+  "templating": {
+    "list": [
+      {
+        "allValue": null,
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-vn30" },
+        "definition": "SELECT DISTINCT sector_name FROM vn30.dim_stocks ORDER BY sector_name",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Nhóm Ngành",
+        "multi": true,
+        "name": "sector",
+        "options": [],
+        "query": "SELECT DISTINCT sector_name FROM vn30.dim_stocks ORDER BY sector_name",
+        "refresh": 1,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {
+    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
+  },
+  "timezone": "Asia/Ho_Chi_Minh",
+  "title": "Tổng Quan Thị Trường",
+  "uid": "tong-quan-thi-truong",
+  "version": 1,
+  "weekStart": "monday"
+}

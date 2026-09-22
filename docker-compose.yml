@@ -6,8 +6,8 @@ services:
     image: clickhouse/clickhouse-server:24.3-alpine
     container_name: vn30_clickhouse
     ports:
-      - "8123:8123"   # HTTP interface (REST / web UI)
-      - "9000:9000"   # Native TCP interface (clickhouse-driver)
+      - "8123:8123"   # HTTP interface (REST / web UI / dbt-clickhouse)
+      - "9000:9000"   # Native TCP interface
     volumes:
       - ch_data:/var/lib/clickhouse
       - ./infra/clickhouse/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
@@ -17,6 +17,9 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-vn30_user}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-changeme}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    depends_on:
+      kafka:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
       interval: 10s
@@ -30,44 +33,53 @@ services:
         hard: 262144
 
   # -----------------------------------------------------------------------
-  # MinIO — S3-Compatible Object Storage (Bronze Layer)
+  # Apache Kafka — KRaft Mode (No ZooKeeper required)
   # -----------------------------------------------------------------------
-  minio:
-    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
-    container_name: vn30_minio
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: vn30_kafka
     ports:
-      - "9001:9000"   # S3 API endpoint
-      - "9002:9001"   # MinIO Web Console
-    volumes:
-      - minio_data:/data
+      - "9092:9092"   # Internal broker port
+      - "9093:9093"   # Controller / External host port
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-    command: server /data --console-address ":9001"
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
       retries: 5
-      start_period: 20s
+      start_period: 30s
     restart: unless-stopped
 
   # -----------------------------------------------------------------------
-  # MinIO Init — Tạo bucket vn30-bronze sau khi MinIO sẵn sàng
+  # Kafka UI — Topic & Message Management UI (Port 8090)
   # -----------------------------------------------------------------------
-  minio-init:
-    image: minio/mc:RELEASE.2024-01-13T08-44-48Z
-    container_name: vn30_minio_init
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: vn30_kafka_ui
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: vn30-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
     depends_on:
-      minio:
+      kafka:
         condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin123};
-      mc mb --ignore-existing local/vn30-bronze;
-      echo '[OK] Bucket vn30-bronze ready';
-      "
-    restart: "no"
+    restart: unless-stopped
 
   # -----------------------------------------------------------------------
   # PostgreSQL — Airflow Metadata Database
@@ -106,11 +118,12 @@ services:
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
-      _PIP_ADDITIONAL_REQUIREMENTS: "polars>=0.20.0 pyarrow>=14.0.0 clickhouse-driver>=0.2.7 minio>=7.2.0 pydantic>=2.0.0 pydantic-settings>=2.0.0 vnstock3>=0.3.0 aiohttp>=3.9.0"
+      _PIP_ADDITIONAL_REQUIREMENTS: "confluent-kafka>=2.4.0 dbt-core>=1.8.0 dbt-clickhouse>=1.8.0 clickhouse-driver>=0.2.7 pydantic>=2.0.0 pydantic-settings>=2.0.0 vnstock3>=0.3.0 aiohttp>=3.9.0"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
-      - ./logs:/opt/airflow/logs
+      - ./transform:/opt/airflow/transform
+      - airflow_logs:/opt/airflow/logs
     entrypoint: >
       /bin/bash -c "
       airflow db init &&
@@ -119,7 +132,7 @@ services:
     restart: "no"
 
   # -----------------------------------------------------------------------
-  # Airflow Webserver — Web UI (Port 8080)
+  # Airflow Webserver — Web UI (Port 8088)
   # -----------------------------------------------------------------------
   airflow-webserver:
     image: apache/airflow:2.8.1-python3.11
@@ -133,19 +146,14 @@ services:
       AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Ho_Chi_Minh
       TZ: Asia/Ho_Chi_Minh
       PYTHONPATH: /opt/airflow
-      _PIP_ADDITIONAL_REQUIREMENTS: "polars>=0.20.0 pyarrow>=14.0.0 clickhouse-driver>=0.2.7 minio>=7.2.0 pydantic>=2.0.0 pydantic-settings>=2.0.0 vnstock3>=0.3.0 aiohttp>=3.9.0"
+      _PIP_ADDITIONAL_REQUIREMENTS: "confluent-kafka>=2.4.0 dbt-core>=1.8.0 dbt-clickhouse>=1.8.0 clickhouse-driver>=0.2.7 pydantic>=2.0.0 pydantic-settings>=2.0.0 vnstock3>=0.3.0 aiohttp>=3.9.0"
       CLICKHOUSE_HOST: clickhouse
       CLICKHOUSE_PORT: 9000
       CLICKHOUSE_DATABASE: vn30
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-vn30_user}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-changeme}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-      MINIO_SECURE: "false"
-      MINIO_BUCKET_BRONZE: vn30-bronze
-      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN:-}
-      VNSTOCK_SOURCE: ${VNSTOCK_SOURCE:-TCBS}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      VNSTOCK_SOURCE: ${VNSTOCK_SOURCE:-VCI}
       VNSTOCK_API_KEY: ${VNSTOCK_API_KEY:-}
     command: webserver
     depends_on:
@@ -153,10 +161,13 @@ services:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     volumes:
       - ./dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
-      - ./logs:/opt/airflow/logs
+      - ./transform:/opt/airflow/transform
+      - airflow_logs:/opt/airflow/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 15s
@@ -166,7 +177,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
+          memory: 1536M
     restart: unless-stopped
 
   # -----------------------------------------------------------------------
@@ -182,19 +193,14 @@ services:
       AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Ho_Chi_Minh
       TZ: Asia/Ho_Chi_Minh
       PYTHONPATH: /opt/airflow
-      _PIP_ADDITIONAL_REQUIREMENTS: "polars>=0.20.0 pyarrow>=14.0.0 clickhouse-driver>=0.2.7 minio>=7.2.0 pydantic>=2.0.0 pydantic-settings>=2.0.0 vnstock3>=0.3.0 aiohttp>=3.9.0"
+      _PIP_ADDITIONAL_REQUIREMENTS: "confluent-kafka>=2.4.0 dbt-core>=1.8.0 dbt-clickhouse>=1.8.0 clickhouse-driver>=0.2.7 pydantic>=2.0.0 pydantic-settings>=2.0.0 vnstock3>=0.3.0 aiohttp>=3.9.0"
       CLICKHOUSE_HOST: clickhouse
       CLICKHOUSE_PORT: 9000
       CLICKHOUSE_DATABASE: vn30
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-vn30_user}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-changeme}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-      MINIO_SECURE: "false"
-      MINIO_BUCKET_BRONZE: vn30-bronze
-      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN:-}
-      VNSTOCK_SOURCE: ${VNSTOCK_SOURCE:-TCBS}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      VNSTOCK_SOURCE: ${VNSTOCK_SOURCE:-VCI}
       VNSTOCK_API_KEY: ${VNSTOCK_API_KEY:-}
     command: scheduler
     depends_on:
@@ -202,14 +208,44 @@ services:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     volumes:
       - ./dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
-      - ./logs:/opt/airflow/logs
+      - ./transform:/opt/airflow/transform
+      - airflow_logs:/opt/airflow/logs
     deploy:
       resources:
         limits:
           memory: 768M
+    restart: unless-stopped
+
+  # -----------------------------------------------------------------------
+  # Realtime Producer — Continuous Streaming Daemon
+  # -----------------------------------------------------------------------
+  realtime-producer:
+    image: apache/airflow:2.8.1-python3.11
+    container_name: vn30_realtime_producer
+    environment:
+      PYTHONPATH: /opt/airflow
+      TZ: Asia/Ho_Chi_Minh
+      _PIP_ADDITIONAL_REQUIREMENTS: "confluent-kafka>=2.4.0 vnstock3>=0.3.0 aiohttp>=3.9.0 pydantic>=2.0.0 pydantic-settings>=2.0.0"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      VNSTOCK_SOURCE: ${VNSTOCK_SOURCE:-VCI}
+      VNSTOCK_API_KEY: ${VNSTOCK_API_KEY:-}
+      PRODUCER_INTERVAL: ${PRODUCER_INTERVAL:-15}
+      PRODUCER_CHECK_TRADING_HOUR: ${PRODUCER_CHECK_TRADING_HOUR:-false}
+    entrypoint: ["/entrypoint", "bash", "-c", "python3 -m src.producers.kafka_producer --loop"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./src:/opt/airflow/src
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     restart: unless-stopped
 
   # -----------------------------------------------------------------------
@@ -250,9 +286,11 @@ services:
 volumes:
   ch_data:
     name: vn30_ch_data
-  minio_data:
-    name: vn30_minio_data
+  kafka_data:
+    name: vn30_kafka_data
   postgres_data:
     name: vn30_postgres_data
   grafana_data:
     name: vn30_grafana_data
+  airflow_logs:
+    name: vn30_airflow_logs
