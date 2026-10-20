@@ -53,3 +53,9 @@ logs/
 
 # Grafana exports (có thể commit dashboard JSON, nhưng không commit local state)
 infra/grafana/grafana.db
+
+# dbt
+transform/target/
+transform/dbt_packages/
+transform/dbt_modules/
+transform/.user.yml
